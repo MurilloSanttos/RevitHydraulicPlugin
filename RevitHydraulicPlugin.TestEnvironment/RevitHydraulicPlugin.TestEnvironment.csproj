@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>RevitHydraulicPlugin.TestEnvironment</RootNamespace>
+    <AssemblyName>RevitHydraulicPlugin.TestEnvironment</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    NOTA: Este projeto NÃO referencia a Revit API.
+    Ele é completamente independente e pode ser compilado e executado
+    sem o Autodesk Revit instalado.
+    
+    A lógica pura do plugin (enums, regras, classificação) é 
+    duplicada aqui para permitir validação offline.
+  -->
+
+</Project>

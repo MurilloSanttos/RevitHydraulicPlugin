@@ -1,0 +1,66 @@
+# ═══════════════════════════════════════════════════════════════
+# .gitignore — RevitHydraulicPlugin
+# ═══════════════════════════════════════════════════════════════
+
+# ──── Build Results ────
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+build/dist/
+
+# ──── Visual Studio ────
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+*.VisualState.xml
+*.GhostDoc.xml
+
+# ──── NuGet ────
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+
+# ──── Rider / JetBrains ────
+.idea/
+*.sln.iml
+
+# ──── VS Code ────
+.vscode/
+
+# ──── OS Generated ────
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ──── User-specific files ────
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+*.pfx
+*.publishsettings
+
+# ──── ReSharper ────
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# ──── Test Results ────
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+TestResult.xml
+
+# ──── Plugin Logs ────
+*.log

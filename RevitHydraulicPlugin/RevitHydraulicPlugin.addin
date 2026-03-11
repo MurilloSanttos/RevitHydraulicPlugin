@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ═══════════════════════════════════════════════════════════════
+  RevitHydraulicPlugin — Manifesto de Registro (.addin)
+  ═══════════════════════════════════════════════════════════════
+  
+  INSTALAÇÃO:
+  
+  1. Copie este arquivo (.addin) para a pasta de Addins do Revit:
+  
+       C:\ProgramData\Autodesk\Revit\Addins\20XX\
+  
+     Substitua "20XX" pela versão do Revit instalada (2024, 2025, 2026).
+  
+  2. Copie o arquivo "RevitHydraulicPlugin.dll" para:
+  
+       C:\ProgramData\Autodesk\Revit\Addins\20XX\RevitHydraulicPlugin\
+  
+  3. Reinicie o Revit.
+  
+  Os comandos aparecerão na aba "Add-Ins" > "External Tools".
+  ═══════════════════════════════════════════════════════════════
+-->
+<RevitAddIns>
+
+  <!-- ━━━ Comando 1: Detectar Ambientes Hidráulicos ━━━ -->
+  <AddIn Type="Command">
+    <Name>Detectar Ambientes</Name>
+    <Assembly>RevitHydraulicPlugin\RevitHydraulicPlugin.dll</Assembly>
+    <FullClassName>RevitHydraulicPlugin.Commands.DetectRoomsCommand</FullClassName>
+    <ClientId>D1A2B3C4-1111-2222-3333-444455556661</ClientId>
+    <VendorId>HydraulicPlugin</VendorId>
+    <VendorDescription>RevitHydraulicPlugin - Automação Hidráulica</VendorDescription>
+    <Text>Detectar Ambientes Hidráulicos</Text>
+    <Description>Analisa os Rooms do modelo e identifica ambientes que possuem instalações hidráulicas (banheiros, cozinhas, lavanderias, etc.).</Description>
+    <VisibilityMode>AlwaysVisible</VisibilityMode>
+  </AddIn>
+
+  <!-- ━━━ Comando 2: Identificar Equipamentos ━━━ -->
+  <AddIn Type="Command">
+    <Name>Identificar Equipamentos</Name>
+    <Assembly>RevitHydraulicPlugin\RevitHydraulicPlugin.dll</Assembly>
+    <FullClassName>RevitHydraulicPlugin.Commands.IdentifyEquipmentCommand</FullClassName>
+    <ClientId>D1A2B3C4-1111-2222-3333-444455556662</ClientId>
+    <VendorId>HydraulicPlugin</VendorId>
+    <VendorDescription>RevitHydraulicPlugin - Automação Hidráulica</VendorDescription>
+    <Text>Identificar Equipamentos Hidráulicos</Text>
+    <Description>Detecta equipamentos como vasos sanitários, pias, chuveiros e lavatórios nos ambientes hidráulicos do modelo.</Description>
+    <VisibilityMode>AlwaysVisible</VisibilityMode>
+  </AddIn>
+
+  <!-- ━━━ Comando 3: Criar Colunas Hidráulicas ━━━ -->
+  <AddIn Type="Command">
+    <Name>Criar Colunas</Name>
+    <Assembly>RevitHydraulicPlugin\RevitHydraulicPlugin.dll</Assembly>
+    <FullClassName>RevitHydraulicPlugin.Commands.CreateColumnsCommand</FullClassName>
+    <ClientId>D1A2B3C4-1111-2222-3333-444455556663</ClientId>
+    <VendorId>HydraulicPlugin</VendorId>
+    <VendorDescription>RevitHydraulicPlugin - Automação Hidráulica</VendorDescription>
+    <Text>Criar Colunas Hidráulicas</Text>
+    <Description>Gera colunas verticais de água fria e esgoto atravessando todos os níveis do projeto.</Description>
+    <VisibilityMode>AlwaysVisible</VisibilityMode>
+  </AddIn>
+
+  <!-- ━━━ Comando 4: Gerar Ramais ━━━ -->
+  <AddIn Type="Command">
+    <Name>Gerar Ramais</Name>
+    <Assembly>RevitHydraulicPlugin\RevitHydraulicPlugin.dll</Assembly>
+    <FullClassName>RevitHydraulicPlugin.Commands.GenerateBranchesCommand</FullClassName>
+    <ClientId>D1A2B3C4-1111-2222-3333-444455556664</ClientId>
+    <VendorId>HydraulicPlugin</VendorId>
+    <VendorDescription>RevitHydraulicPlugin - Automação Hidráulica</VendorDescription>
+    <Text>Gerar Ramais Hidráulicos</Text>
+    <Description>Cria ramais de tubulação conectando cada equipamento hidráulico à coluna mais próxima.</Description>
+    <VisibilityMode>AlwaysVisible</VisibilityMode>
+  </AddIn>
+
+  <!-- ━━━ Comando 5: Pipeline Completo ━━━ -->
+  <AddIn Type="Command">
+    <Name>Automação Hidráulica Completa</Name>
+    <Assembly>RevitHydraulicPlugin\RevitHydraulicPlugin.dll</Assembly>
+    <FullClassName>RevitHydraulicPlugin.Commands.RunFullPipelineCommand</FullClassName>
+    <ClientId>D1A2B3C4-1111-2222-3333-444455556665</ClientId>
+    <VendorId>HydraulicPlugin</VendorId>
+    <VendorDescription>RevitHydraulicPlugin - Automação Hidráulica</VendorDescription>
+    <Text>Automação Hidráulica Completa</Text>
+    <Description>Executa todas as etapas automaticamente: detecta ambientes → identifica equipamentos → cria colunas → gera ramais.</Description>
+    <VisibilityMode>AlwaysVisible</VisibilityMode>
+  </AddIn>
+
+</RevitAddIns>

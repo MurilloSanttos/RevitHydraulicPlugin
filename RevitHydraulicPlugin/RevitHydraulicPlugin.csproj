@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>RevitHydraulicPlugin</RootNamespace>
+    <AssemblyName>RevitHydraulicPlugin</AssemblyName>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Configurations>Debug;Release</Configurations>
+    <Platforms>AnyCPU</Platforms>
+  </PropertyGroup>
+
+  <!--
+    ═══════════════════════════════════════════════════════════════
+    REFERÊNCIAS DO REVIT API
+    ═══════════════════════════════════════════════════════════════
+    
+    CONFIGURAÇÃO NECESSÁRIA:
+    Antes de compilar, ajuste o caminho abaixo para apontar para
+    a SUA instalação do Autodesk Revit.
+    
+    Caminhos comuns:
+      Revit 2024:  C:\Program Files\Autodesk\Revit 2024\
+      Revit 2025:  C:\Program Files\Autodesk\Revit 2025\
+      Revit 2026:  C:\Program Files\Autodesk\Revit 2026\
+    
+    Você também pode definir a variável de ambiente REVIT_API_PATH:
+      set REVIT_API_PATH=C:\Program Files\Autodesk\Revit 2025
+    
+    IMPORTANTE: 
+    - CopyLocal (Private) = false porque os DLLs do Revit já
+      estão carregados quando o plugin executa dentro do Revit.
+    - NÃO distribua RevitAPI.dll junto com o plugin.
+    ═══════════════════════════════════════════════════════════════
+  -->
+
+  <!-- Variável para facilitar troca de versão -->
+  <PropertyGroup>
+    <RevitApiPath Condition="'$(RevitApiPath)' == '' AND '$(REVIT_API_PATH)' != ''">$(REVIT_API_PATH)</RevitApiPath>
+    <RevitApiPath Condition="'$(RevitApiPath)' == '' AND Exists('C:\Program Files\Autodesk\Revit 2026')">C:\Program Files\Autodesk\Revit 2026</RevitApiPath>
+    <RevitApiPath Condition="'$(RevitApiPath)' == '' AND Exists('C:\Program Files\Autodesk\Revit 2025')">C:\Program Files\Autodesk\Revit 2025</RevitApiPath>
+    <RevitApiPath Condition="'$(RevitApiPath)' == ''">C:\Program Files\Autodesk\Revit 2024</RevitApiPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="RevitAPI">
+      <HintPath>$(RevitApiPath)\RevitAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>$(RevitApiPath)\RevitAPIUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
