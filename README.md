@@ -1,5 +1,3 @@
-cd "c:\Users\User\Desktop\Revit\RevitHydraulicPlugin" && git init && git add . && git status# RevitHydraulicPlugin
-
 **Plugin interno para Autodesk Revit** — Automação das etapas iniciais de modelagem hidráulica predial.
 
 ![Revit](https://img.shields.io/badge/Autodesk%20Revit-2024%20|%202025%20|%202026-blue)
