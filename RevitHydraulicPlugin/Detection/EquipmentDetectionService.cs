@@ -109,8 +109,11 @@ namespace RevitHydraulicPlugin.Detection
 
                 // Ignora equipamentos não reconhecidos da categoria GenericModel
                 // (para evitar falsos positivos)
+                // NOTA: Usa comparação de ElementId direta em vez de IntegerValue
+                // para compatibilidade com Revit 2024, 2025 e 2026.
+                var genericModelId = new ElementId(BuiltInCategory.OST_GenericModel);
                 if (equipmentType == EquipmentType.Outro
-                    && instance.Category.Id.IntegerValue == (int)BuiltInCategory.OST_GenericModel)
+                    && instance.Category.Id.Equals(genericModelId))
                 {
                     continue;
                 }
