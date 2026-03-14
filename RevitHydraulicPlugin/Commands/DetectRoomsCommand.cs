@@ -23,9 +23,11 @@ namespace RevitHydraulicPlugin.Commands
             ref string message,
             ElementSet elements)
         {
+            Logger.StartSession("DetectRooms");
+            bool success = false;
+
             try
             {
-                Logger.Info("=== Comando DetectRooms iniciado ===");
 
                 var document = commandData.Application.ActiveUIDocument.Document;
                 var roomDetection = new RoomDetectionService(document);
@@ -55,7 +57,7 @@ namespace RevitHydraulicPlugin.Commands
 
                 TaskDialog.Show("Detecção de Ambientes Hidráulicos", sb.ToString());
 
-                Logger.Info("=== Comando DetectRooms finalizado ===");
+                success = true;
                 return Result.Succeeded;
             }
             catch (Exception ex)
@@ -63,6 +65,10 @@ namespace RevitHydraulicPlugin.Commands
                 message = $"Erro ao detectar ambientes: {ex.Message}";
                 Logger.Error("Erro no DetectRoomsCommand", ex);
                 return Result.Failed;
+            }
+            finally
+            {
+                Logger.EndSession(success);
             }
         }
     }

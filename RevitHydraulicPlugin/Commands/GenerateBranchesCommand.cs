@@ -26,9 +26,11 @@ namespace RevitHydraulicPlugin.Commands
             ref string message,
             ElementSet elements)
         {
+            Logger.StartSession("GenerateBranches");
+            bool success = false;
+
             try
             {
-                Logger.Info("=== Comando GenerateBranches iniciado ===");
 
                 var document = commandData.Application.ActiveUIDocument.Document;
 
@@ -111,7 +113,7 @@ namespace RevitHydraulicPlugin.Commands
                     $"✓ {totalPipes} ramais criados com sucesso!\n" +
                     $"  Equipamentos conectados: {equipment.Count}");
 
-                Logger.Info("=== Comando GenerateBranches finalizado ===");
+                success = true;
                 return Result.Succeeded;
             }
             catch (Exception ex)
@@ -119,6 +121,10 @@ namespace RevitHydraulicPlugin.Commands
                 message = $"Erro ao gerar ramais: {ex.Message}";
                 Logger.Error("Erro no GenerateBranchesCommand", ex);
                 return Result.Failed;
+            }
+            finally
+            {
+                Logger.EndSession(success);
             }
         }
     }

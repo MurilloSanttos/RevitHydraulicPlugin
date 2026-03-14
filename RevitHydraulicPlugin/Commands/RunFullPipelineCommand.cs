@@ -27,26 +27,33 @@ namespace RevitHydraulicPlugin.Commands
             ref string message,
             ElementSet elements)
         {
+            // Inicia sessão de logging
+            Logger.StartSession("RunFullPipeline");
+            bool success = false;
+
             try
             {
-                Logger.Info("=== Comando RunFullPipeline iniciado ===");
-
                 var document = commandData.Application.ActiveUIDocument.Document;
 
+                Logger.Info($"Projeto: {document.Title}");
+                Logger.Info($"Arquivo: {document.PathName}");
+
                 // Confirmação antes de executar
-                var confirmDialog = new TaskDialog("Pipeline Hidráulico Completo");
+                var confirmDialog = new TaskDialog("Pipeline Hidraulico Completo");
                 confirmDialog.MainContent =
-                    "Este comando irá executar a automação hidráulica completa:\n\n" +
-                    "  1. Detectar ambientes hidráulicos\n" +
+                    "Este comando ira executar a automacao hidraulica completa:\n\n" +
+                    "  1. Detectar ambientes hidraulicos\n" +
                     "  2. Identificar equipamentos\n" +
-                    "  3. Criar colunas hidráulicas\n" +
-                    "  4. Gerar ramais de conexão\n\n" +
-                    "O modelo será modificado. Deseja continuar?";
+                    "  3. Criar colunas hidraulicas\n" +
+                    "  4. Gerar ramais de conexao\n\n" +
+                    "O modelo sera modificado. Deseja continuar?";
                 confirmDialog.CommonButtons = TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No;
                 confirmDialog.DefaultButton = TaskDialogResult.No;
 
                 if (confirmDialog.Show() != TaskDialogResult.Yes)
                 {
+                    Logger.Info("Execucao cancelada pelo usuario.");
+                    Logger.EndSession(true);
                     return Result.Cancelled;
                 }
 
@@ -55,7 +62,7 @@ namespace RevitHydraulicPlugin.Commands
                 var result = pipelineService.RunFullPipeline();
 
                 // Exibe relatório ao usuário
-                var resultDialog = new TaskDialog("Resultado da Automação Hidráulica");
+                var resultDialog = new TaskDialog("Resultado da Automacao Hidraulica");
                 resultDialog.MainContent = result.ToReport();
 
                 if (result.Success)
@@ -67,16 +74,24 @@ namespace RevitHydraulicPlugin.Commands
                     resultDialog.MainIcon = TaskDialogIcon.TaskDialogIconWarning;
                 }
 
+                // Adiciona informação de log no diálogo
+                resultDialog.ExpandedContent =
+                    $"Log salvo em:\n{Logger.GetCurrentLogFilePath()}";
+
                 resultDialog.Show();
 
-                Logger.Info("=== Comando RunFullPipeline finalizado ===");
+                success = result.Success;
                 return result.Success ? Result.Succeeded : Result.Failed;
             }
             catch (Exception ex)
             {
-                message = $"Erro na automação hidráulica: {ex.Message}";
-                Logger.Error("Erro no RunFullPipelineCommand", ex);
+                message = $"Erro na automacao hidraulica: {ex.Message}";
+                Logger.Error("Erro fatal no RunFullPipelineCommand", ex);
                 return Result.Failed;
+            }
+            finally
+            {
+                Logger.EndSession(success);
             }
         }
     }

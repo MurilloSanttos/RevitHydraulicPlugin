@@ -11,12 +11,21 @@ namespace RevitHydraulicPlugin.Detection
     /// Serviço responsável por detectar equipamentos hidráulicos dentro dos
     /// ambientes identificados pelo RoomDetectionService.
     /// 
-    /// Analisa FamilyInstances de categorias MEP (Plumbing Fixtures, etc.)
-    /// e associa cada equipamento ao Room em que está posicionado.
+    /// VERSÃO 2.0 — Agora utiliza o FixtureClassifierService para classificação
+    /// multi-critério (nome + parâmetros + conectores) em vez de depender
+    /// exclusivamente de keywords no nome da família.
+    /// 
+    /// Fluxo:
+    /// 1. Coleta FamilyInstances das categorias MEP relevantes
+    /// 2. Para cada instância, usa FixtureClassifierService para classificar
+    /// 3. Verifica se o equipamento está dentro de algum HydraulicRoom
+    /// 4. Extrai conectores e atribui especificações hidráulicas
+    /// 5. Registra logs detalhados de cada etapa
     /// </summary>
     public class EquipmentDetectionService
     {
         private readonly Document _document;
+        private readonly FixtureClassifierService _classifier;
 
         /// <summary>
         /// Categorias do Revit que contêm equipamentos hidráulicos.
@@ -28,154 +37,139 @@ namespace RevitHydraulicPlugin.Detection
             BuiltInCategory.OST_GenericModel          // Modelos genéricos (ralos, acessórios)
         };
 
-        /// <summary>
-        /// Mapeamento de palavras-chave no nome da família para tipo de equipamento.
-        /// Case-insensitive. A primeira correspondência encontrada é usada.
-        /// </summary>
-        private static readonly Dictionary<string, EquipmentType> EquipmentKeywords =
-            new Dictionary<string, EquipmentType>
-            {
-                { "vaso", EquipmentType.VasoSanitario },
-                { "toilet", EquipmentType.VasoSanitario },
-                { "bacia", EquipmentType.VasoSanitario },
-                { "lavatorio", EquipmentType.Lavatorio },
-                { "lavatório", EquipmentType.Lavatorio },
-                { "lavat", EquipmentType.Lavatorio },
-                { "sink", EquipmentType.Lavatorio },
-                { "basin", EquipmentType.Lavatorio },
-                { "chuveiro", EquipmentType.Chuveiro },
-                { "shower", EquipmentType.Chuveiro },
-                { "ducha", EquipmentType.Chuveiro },
-                { "pia", EquipmentType.Pia },
-                { "kitchen sink", EquipmentType.Pia },
-                { "tanque", EquipmentType.Tanque },
-                { "laundry", EquipmentType.Tanque },
-                { "ralo", EquipmentType.Ralo },
-                { "drain", EquipmentType.Ralo },
-                { "floor drain", EquipmentType.Ralo },
-                { "máquina", EquipmentType.MaquinaLavar },
-                { "maquina", EquipmentType.MaquinaLavar },
-                { "washer", EquipmentType.MaquinaLavar },
-                { "washing", EquipmentType.MaquinaLavar }
-            };
-
         public EquipmentDetectionService(Document document)
         {
             _document = document;
+            _classifier = new FixtureClassifierService();
         }
 
         /// <summary>
         /// Detecta equipamentos hidráulicos em todos os ambientes fornecidos.
-        /// 
-        /// Fluxo:
-        /// 1. Coleta todas as FamilyInstances das categorias MEP relevantes.
-        /// 2. Para cada instância, verifica se está dentro de algum HydraulicRoom.
-        /// 3. Classifica o tipo de equipamento pelo nome da família.
-        /// 4. Extrai conectores de tubulação.
-        /// 5. Atribui especificação de tubulação via HydraulicRules.
-        /// 6. Adiciona o equipamento à lista do Room correspondente.
+        /// Utiliza o FixtureClassifierService para classificação robusta.
         /// </summary>
         /// <param name="rooms">Lista de ambientes hidráulicos detectados.</param>
         /// <returns>Lista completa de equipamentos hidráulicos encontrados.</returns>
         public List<HydraulicEquipment> DetectEquipment(List<HydraulicRoom> rooms)
         {
-            Logger.Info("Iniciando detecção de equipamentos hidráulicos...");
-
-            var allEquipment = new List<HydraulicEquipment>();
-
-            // Coleta FamilyInstances das categorias hidráulicas
-            var plumbingInstances = new List<FamilyInstance>();
-            foreach (var category in HydraulicCategories)
+            using (Logger.MeasureTime("Deteccao de Equipamentos"))
             {
-                var instances = new FilteredElementCollector(_document)
-                    .OfCategory(category)
-                    .WhereElementIsNotElementType()
-                    .OfClass(typeof(FamilyInstance))
-                    .Cast<FamilyInstance>()
-                    .ToList();
+                Logger.Info("[EQUIP] Iniciando deteccao de equipamentos hidraulicos...");
+                Logger.Info($"[EQUIP] Ambientes a analisar: {rooms.Count}");
 
-                plumbingInstances.AddRange(instances);
-            }
+                var allEquipment = new List<HydraulicEquipment>();
 
-            Logger.Info($"Total de FamilyInstances MEP encontradas: {plumbingInstances.Count}");
-
-            foreach (var instance in plumbingInstances)
-            {
-                string familyName = instance.Symbol?.Family?.Name ?? "";
-                string typeName = instance.Symbol?.Name ?? "";
-
-                // Classifica o tipo de equipamento
-                EquipmentType equipmentType = ClassifyEquipment(familyName, typeName);
-
-                // Ignora equipamentos não reconhecidos da categoria GenericModel
-                // (para evitar falsos positivos)
-                // NOTA: Usa comparação de ElementId direta em vez de IntegerValue
-                // para compatibilidade com Revit 2024, 2025 e 2026.
-                var genericModelId = new ElementId(BuiltInCategory.OST_GenericModel);
-                if (equipmentType == EquipmentType.Outro
-                    && instance.Category.Id.Equals(genericModelId))
+                // Coleta FamilyInstances das categorias hidráulicas
+                var plumbingInstances = new List<FamilyInstance>();
+                foreach (var category in HydraulicCategories)
                 {
-                    continue;
+                    var instances = new FilteredElementCollector(_document)
+                        .OfCategory(category)
+                        .WhereElementIsNotElementType()
+                        .OfClass(typeof(FamilyInstance))
+                        .Cast<FamilyInstance>()
+                        .ToList();
+
+                    Logger.Debug($"[EQUIP] Categoria {category}: {instances.Count} instancias");
+                    plumbingInstances.AddRange(instances);
                 }
 
-                // Obtém posição do equipamento
-                var location = instance.Location as LocationPoint;
-                if (location == null) continue;
+                Logger.Info($"[EQUIP] Total de FamilyInstances MEP encontradas: {plumbingInstances.Count}");
 
-                XYZ position = location.Point;
+                int classifiedCount = 0;
+                int skippedGenericCount = 0;
+                int skippedNoLocationCount = 0;
+                int skippedNoRoomCount = 0;
 
-                // Encontra o Room ao qual pertence
-                var associatedRoom = FindRoomForEquipment(position, rooms);
-                if (associatedRoom == null)
+                foreach (var instance in plumbingInstances)
                 {
-                    Logger.Debug($"  ✗ Equipamento '{familyName}' não está em nenhum ambiente hidráulico");
-                    continue;
+                    // ── Classificação via FixtureClassifierService ──
+                    var classification = _classifier.Classify(instance);
+
+                    // Ignora equipamentos Unknown da categoria GenericModel
+                    // (para evitar falsos positivos com modelos genéricos)
+                    if (classification.Type == FixtureType.Unknown)
+                    {
+                        var genericModelId = new ElementId(BuiltInCategory.OST_GenericModel);
+                        if (instance.Category.Id.Equals(genericModelId))
+                        {
+                            skippedGenericCount++;
+                            Logger.Debug($"[EQUIP] Ignorado (GenericModel desconhecido): '{classification.FamilyName}'");
+                            continue;
+                        }
+                    }
+
+                    // Converte para EquipmentType (compatibilidade com sistema existente)
+                    EquipmentType equipmentType = FixtureClassifierService.ToEquipmentType(classification.Type);
+
+                    // Obtém posição do equipamento
+                    var location = instance.Location as LocationPoint;
+                    if (location == null)
+                    {
+                        skippedNoLocationCount++;
+                        Logger.Debug($"[EQUIP] Ignorado (sem LocationPoint): '{classification.FamilyName}'");
+                        continue;
+                    }
+
+                    XYZ position = location.Point;
+
+                    // Encontra o Room ao qual pertence
+                    var associatedRoom = FindRoomForEquipment(position, rooms);
+                    if (associatedRoom == null)
+                    {
+                        skippedNoRoomCount++;
+                        Logger.Debug($"[EQUIP] Fora de ambientes hidraulicos: '{classification.FamilyName}' em ({position.X:F2}, {position.Y:F2})");
+                        continue;
+                    }
+
+                    // Extrai conectores de tubulação
+                    var connectors = ConnectorHelper.GetPipingConnectors(instance);
+
+                    // Cria o modelo de equipamento
+                    var equipment = new HydraulicEquipment
+                    {
+                        ElementId = instance.Id,
+                        FamilyName = classification.FamilyName,
+                        TypeName = classification.TypeName,
+                        Type = equipmentType,
+                        Position = position,
+                        RoomId = associatedRoom.RoomId,
+                        LevelId = instance.LevelId,
+                        Connectors = connectors,
+                        PipeSpec = HydraulicRules.GetSewerSpec(equipmentType)
+                    };
+
+                    // Adiciona ao Room e à lista geral
+                    associatedRoom.Equipment.Add(equipment);
+                    allEquipment.Add(equipment);
+                    classifiedCount++;
+
+                    // Log detalhado da detecção
+                    Logger.LogFixtureDetected(
+                        classification.FamilyName,
+                        $"{classification.Type} ({classification.Confidence:P0}, {classification.ClassificationMethod})",
+                        associatedRoom.RoomName);
                 }
 
-                // Extrai conectores de tubulação
-                var connectors = ConnectorHelper.GetPipingConnectors(instance);
+                // ── Relatório de detecção ──
+                Logger.Info($"[EQUIP] === Resumo da Deteccao ===");
+                Logger.Info($"[EQUIP]   Classificados: {classifiedCount}");
+                Logger.Info($"[EQUIP]   Ignorados (GenericModel): {skippedGenericCount}");
+                Logger.Info($"[EQUIP]   Ignorados (sem posicao): {skippedNoLocationCount}");
+                Logger.Info($"[EQUIP]   Ignorados (fora de Rooms): {skippedNoRoomCount}");
+                Logger.Info($"[EQUIP] Total detectados: {allEquipment.Count}");
 
-                // Cria o modelo de equipamento
-                var equipment = new HydraulicEquipment
+                // Log por Room
+                foreach (var room in rooms.Where(r => r.Equipment.Count > 0))
                 {
-                    ElementId = instance.Id,
-                    FamilyName = familyName,
-                    TypeName = typeName,
-                    Type = equipmentType,
-                    Position = position,
-                    RoomId = associatedRoom.RoomId,
-                    LevelId = instance.LevelId,
-                    Connectors = connectors,
-                    PipeSpec = HydraulicRules.GetSewerSpec(equipmentType)
-                };
-
-                // Adiciona ao Room e à lista geral
-                associatedRoom.Equipment.Add(equipment);
-                allEquipment.Add(equipment);
-
-                Logger.Info($"  ✓ Detectado: {equipment}");
-            }
-
-            Logger.Info($"Total de equipamentos hidráulicos detectados: {allEquipment.Count}");
-            return allEquipment;
-        }
-
-        /// <summary>
-        /// Classifica um equipamento pelo nome da família e do tipo.
-        /// </summary>
-        private EquipmentType ClassifyEquipment(string familyName, string typeName)
-        {
-            string combined = $"{familyName} {typeName}".ToLowerInvariant();
-
-            foreach (var kvp in EquipmentKeywords)
-            {
-                if (combined.Contains(kvp.Key))
-                {
-                    return kvp.Value;
+                    Logger.Info($"[EQUIP]   {room.RoomName}: {room.Equipment.Count} equipamentos");
+                    foreach (var eq in room.Equipment)
+                    {
+                        Logger.Debug($"[EQUIP]     - {eq.Type}: {eq.FamilyName}");
+                    }
                 }
-            }
 
-            return EquipmentType.Outro;
+                return allEquipment;
+            }
         }
 
         /// <summary>

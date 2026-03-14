@@ -23,9 +23,11 @@ namespace RevitHydraulicPlugin.Commands
             ref string message,
             ElementSet elements)
         {
+            Logger.StartSession("IdentifyEquipment");
+            bool success = false;
+
             try
             {
-                Logger.Info("=== Comando IdentifyEquipment iniciado ===");
 
                 var document = commandData.Application.ActiveUIDocument.Document;
 
@@ -74,7 +76,7 @@ namespace RevitHydraulicPlugin.Commands
 
                 TaskDialog.Show("Identificação de Equipamentos", sb.ToString());
 
-                Logger.Info("=== Comando IdentifyEquipment finalizado ===");
+                success = true;
                 return Result.Succeeded;
             }
             catch (Exception ex)
@@ -82,6 +84,10 @@ namespace RevitHydraulicPlugin.Commands
                 message = $"Erro ao identificar equipamentos: {ex.Message}";
                 Logger.Error("Erro no IdentifyEquipmentCommand", ex);
                 return Result.Failed;
+            }
+            finally
+            {
+                Logger.EndSession(success);
             }
         }
     }

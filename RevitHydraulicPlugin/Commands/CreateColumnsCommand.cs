@@ -25,9 +25,11 @@ namespace RevitHydraulicPlugin.Commands
             ref string message,
             ElementSet elements)
         {
+            Logger.StartSession("CreateColumns");
+            bool success = false;
+
             try
             {
-                Logger.Info("=== Comando CreateColumns iniciado ===");
 
                 var document = commandData.Application.ActiveUIDocument.Document;
 
@@ -99,7 +101,7 @@ namespace RevitHydraulicPlugin.Commands
                     $"✓ {columns.Count} colunas criadas com sucesso!\n" +
                     $"  Segmentos de tubulação: {totalSegments}");
 
-                Logger.Info("=== Comando CreateColumns finalizado ===");
+                success = true;
                 return Result.Succeeded;
             }
             catch (Exception ex)
@@ -107,6 +109,10 @@ namespace RevitHydraulicPlugin.Commands
                 message = $"Erro ao criar colunas: {ex.Message}";
                 Logger.Error("Erro no CreateColumnsCommand", ex);
                 return Result.Failed;
+            }
+            finally
+            {
+                Logger.EndSession(success);
             }
         }
     }
