@@ -54,4 +54,14 @@
     </Reference>
   </ItemGroup>
 
+  <!--
+    ═══════════════════════════════════════════════════════════════
+    REFERÊNCIAS WPF (para geração de ícones na Ribbon)
+    ═══════════════════════════════════════════════════════════════
+  -->
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+
 </Project>

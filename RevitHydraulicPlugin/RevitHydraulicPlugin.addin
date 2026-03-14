@@ -4,6 +4,11 @@
   RevitHydraulicPlugin — Manifesto de Registro (.addin)
   ═══════════════════════════════════════════════════════════════
   
+  VERSÃO 2.0 — Agora inclui:
+  - IExternalApplication para criar a Ribbon automaticamente
+  - Comandos de Preview e Generate
+  - Comandos individuais mantidos para compatibilidade
+
   INSTALAÇÃO:
   
   1. Copie este arquivo (.addin) para a pasta de Addins do Revit:
@@ -18,10 +23,57 @@
   
   3. Reinicie o Revit.
   
-  Os comandos aparecerão na aba "Add-Ins" > "External Tools".
+  O plugin aparecerá como a aba "Hydraulic Tools" na Ribbon.
+  Os comandos individuais também estarão em "Add-Ins" > "External Tools".
   ═══════════════════════════════════════════════════════════════
 -->
 <RevitAddIns>
+
+  <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       APPLICATION — Cria a Ribbon automaticamente no startup
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+  <AddIn Type="Application">
+    <Name>Hydraulic Tools</Name>
+    <Assembly>RevitHydraulicPlugin\RevitHydraulicPlugin.dll</Assembly>
+    <FullClassName>RevitHydraulicPlugin.UI.HydraulicApp</FullClassName>
+    <ClientId>D1A2B3C4-1111-2222-3333-444455556600</ClientId>
+    <VendorId>HydraulicPlugin</VendorId>
+    <VendorDescription>RevitHydraulicPlugin - Automação Hidráulica</VendorDescription>
+  </AddIn>
+
+  <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       NOVOS COMANDOS — Preview e Generate
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+
+  <!-- ━━━ Preview Hydraulic Layout ━━━ -->
+  <AddIn Type="Command">
+    <Name>Preview Hydraulic Layout</Name>
+    <Assembly>RevitHydraulicPlugin\RevitHydraulicPlugin.dll</Assembly>
+    <FullClassName>RevitHydraulicPlugin.UI.PreviewCommand</FullClassName>
+    <ClientId>D1A2B3C4-1111-2222-3333-444455556670</ClientId>
+    <VendorId>HydraulicPlugin</VendorId>
+    <VendorDescription>RevitHydraulicPlugin - Automação Hidráulica</VendorDescription>
+    <Text>Preview Hydraulic Layout</Text>
+    <Description>Analyzes the model and shows a preview of what would be generated, without making any changes.</Description>
+    <VisibilityMode>AlwaysVisible</VisibilityMode>
+  </AddIn>
+
+  <!-- ━━━ Generate Hydraulic Layout ━━━ -->
+  <AddIn Type="Command">
+    <Name>Generate Hydraulic Layout</Name>
+    <Assembly>RevitHydraulicPlugin\RevitHydraulicPlugin.dll</Assembly>
+    <FullClassName>RevitHydraulicPlugin.UI.GenerateCommand</FullClassName>
+    <ClientId>D1A2B3C4-1111-2222-3333-444455556671</ClientId>
+    <VendorId>HydraulicPlugin</VendorId>
+    <VendorDescription>RevitHydraulicPlugin - Automação Hidráulica</VendorDescription>
+    <Text>Generate Hydraulic Layout</Text>
+    <Description>Runs the complete hydraulic automation with preview and confirmation before making changes.</Description>
+    <VisibilityMode>AlwaysVisible</VisibilityMode>
+  </AddIn>
+
+  <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       COMANDOS INDIVIDUAIS (mantidos para compatibilidade)
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
 
   <!-- ━━━ Comando 1: Detectar Ambientes Hidráulicos ━━━ -->
   <AddIn Type="Command">
