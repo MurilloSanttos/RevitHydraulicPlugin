@@ -56,6 +56,22 @@ namespace RevitHydraulicPlugin.Models
         /// </summary>
         public RoomType Type { get; set; }
 
+        /// <summary>
+        /// Nível de confiança da classificação (0.0 a 1.0).
+        /// Valores altos indicam forte evidência hidráulica.
+        /// </summary>
+        public double ClassificationConfidence { get; set; }
+
+        /// <summary>
+        /// Método usado para classificação (Name, Fixture, Combined).
+        /// </summary>
+        public string ClassificationMethod { get; set; } = "None";
+
+        /// <summary>
+        /// Área do ambiente em metros quadrados.
+        /// </summary>
+        public double AreaSqM { get; set; }
+
         public override string ToString()
         {
             return $"{RoomName} ({Type}) - Nível: {LevelName} - Equipamentos: {Equipment.Count}";
@@ -64,14 +80,57 @@ namespace RevitHydraulicPlugin.Models
 
     /// <summary>
     /// Tipos de ambientes hidráulicos reconhecidos pelo plugin.
+    /// 
+    /// VERSÃO 2.0 — Expandido com tipos específicos para classificação
+    /// mais precisa e regras diferenciadas por ambiente.
     /// </summary>
     public enum RoomType
     {
-        Banheiro,
-        Lavabo,
-        Cozinha,
-        AreaDeServico,
-        Lavanderia,
-        Outro
+        /// <summary>Banheiro padrão (social, suíte simples)</summary>
+        Bathroom,
+
+        /// <summary>Lavabo (banheiro sem chuveiro, apenas vaso + lavatório)</summary>
+        Lavatory,
+
+        /// <summary>Cozinha</summary>
+        Kitchen,
+
+        /// <summary>Lavanderia</summary>
+        Laundry,
+
+        /// <summary>Área de serviço</summary>
+        ServiceArea,
+
+        /// <summary>Copa (cozinha pequena / espaço com pia)</summary>
+        Pantry,
+
+        /// <summary>Banheiro de suíte</summary>
+        SuiteBathroom,
+
+        /// <summary>Banheiro PCD (acessível)</summary>
+        AccessibleBathroom,
+
+        /// <summary>Ambiente não classificado ou sem evidência hidráulica</summary>
+        Unknown,
+
+        // ── Mapeamento legado (para compatibilidade com código existente) ──
+
+        /// <summary>[Legado] Equivale a Bathroom</summary>
+        Banheiro = Bathroom,
+
+        /// <summary>[Legado] Equivale a Lavatory</summary>
+        Lavabo = Lavatory,
+
+        /// <summary>[Legado] Equivale a Kitchen</summary>
+        Cozinha = Kitchen,
+
+        /// <summary>[Legado] Equivale a ServiceArea</summary>
+        AreaDeServico = ServiceArea,
+
+        /// <summary>[Legado] Equivale a Laundry</summary>
+        Lavanderia = Laundry,
+
+        /// <summary>[Legado] Equivale a Unknown</summary>
+        Outro = Unknown
     }
 }

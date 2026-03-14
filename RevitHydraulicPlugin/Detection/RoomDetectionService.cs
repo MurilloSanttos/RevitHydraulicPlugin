@@ -10,99 +10,183 @@ namespace RevitHydraulicPlugin.Detection
 {
     /// <summary>
     /// Serviço responsável por detectar ambientes (Rooms) hidráulicos no modelo Revit.
-    /// Analisa todos os Rooms do documento e filtra aqueles que possuem
-    /// instalações hidráulicas baseado em padrões de nome.
+    /// 
+    /// VERSÃO 2.0 — Usa RoomClassifierService para classificação multi-critério.
+    /// Suporta classificação em 2 fases:
+    ///   Fase 1: Classificação por nome (rápida, sem Transaction)
+    ///   Fase 2: Reclassificação com fixtures (após detecção de equipamentos)
     /// </summary>
     public class RoomDetectionService
     {
         private readonly Document _document;
+        private readonly RoomClassifierService _classifier;
 
-        /// <summary>
-        /// Inicializa o serviço com o documento Revit ativo.
-        /// </summary>
-        /// <param name="document">Documento Revit a ser analisado.</param>
         public RoomDetectionService(Document document)
         {
             _document = document;
+            _classifier = new RoomClassifierService();
         }
 
         /// <summary>
-        /// Detecta todos os ambientes hidráulicos no modelo.
-        /// 
-        /// Fluxo:
-        /// 1. Coleta todos os Rooms do documento usando FilteredElementCollector.
-        /// 2. Para cada Room, tenta classificar pelo nome usando RoomClassification.
-        /// 3. Cria um HydraulicRoom com dados relevantes para os classificados.
-        /// 4. Retorna apenas os ambientes reconhecidos como hidráulicos.
+        /// Detecta ambientes hidráulicos usando classificação por nome (Fase 1).
+        /// Esta é a primeira passada — antes da detecção de equipamentos.
         /// </summary>
-        /// <returns>Lista de HydraulicRoom detectados.</returns>
+        /// <returns>Lista de HydraulicRoom classificados por nome.</returns>
         public List<HydraulicRoom> DetectHydraulicRooms()
         {
-            Logger.Info("Iniciando detecção de ambientes hidráulicos...");
-
-            var hydraulicRooms = new List<HydraulicRoom>();
-
-            // Coleta todos os Rooms do documento
-            var rooms = new FilteredElementCollector(_document)
-                .OfCategory(BuiltInCategory.OST_Rooms)
-                .WhereElementIsNotElementType()
-                .Cast<Room>()
-                .Where(r => r.Area > 0) // Ignora Rooms sem área (não colocados)
-                .ToList();
-
-            Logger.Info($"Total de Rooms encontrados no modelo: {rooms.Count}");
-
-            foreach (var room in rooms)
+            using (Logger.MeasureTime("Deteccao de Ambientes"))
             {
-                string roomName = room.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString() ?? "";
-                string roomNumber = room.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString() ?? "";
+                Logger.Info("[ROOM] Iniciando deteccao de ambientes hidraulicos...");
 
-                // Tenta classificar o ambiente por nome
-                if (RoomClassification.TryClassify(roomName, out RoomType roomType))
+                var hydraulicRooms = new List<HydraulicRoom>();
+
+                // Coleta todos os Rooms do documento
+                var rooms = new FilteredElementCollector(_document)
+                    .OfCategory(BuiltInCategory.OST_Rooms)
+                    .WhereElementIsNotElementType()
+                    .Cast<Room>()
+                    .Where(r => r.Area > 0) // Ignora Rooms não colocados
+                    .ToList();
+
+                Logger.Info($"[ROOM] Total de Rooms no modelo: {rooms.Count}");
+
+                int detectedCount = 0;
+                int ignoredCount = 0;
+
+                foreach (var room in rooms)
                 {
-                    // Obtém informações do nível
-                    var level = _document.GetElement(room.LevelId) as Level;
+                    string roomName = room.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString() ?? "";
+                    string roomNumber = room.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString() ?? "";
 
-                    // Obtém BoundingBox e calcula centróide
-                    var bbox = room.get_BoundingBox(null);
-                    var centerPoint = RevitGeometryHelper.GetHorizontalCentroid(bbox);
+                    // Classificação por nome usando RoomClassifierService
+                    var analysis = _classifier.ClassifyByName(roomName);
 
-                    var hydraulicRoom = new HydraulicRoom
+                    if (analysis.IsHydraulic)
                     {
-                        RoomId = room.Id,
-                        RoomName = roomName,
-                        RoomNumber = roomNumber,
-                        LevelId = room.LevelId,
-                        LevelName = level?.Name ?? "Indefinido",
-                        CenterPoint = centerPoint,
-                        BoundingBox = bbox,
-                        Type = roomType
-                    };
+                        var level = _document.GetElement(room.LevelId) as Level;
+                        var bbox = room.get_BoundingBox(null);
+                        var centerPoint = RevitGeometryHelper.GetHorizontalCentroid(bbox);
 
-                    hydraulicRooms.Add(hydraulicRoom);
+                        // Calcula área em m² (Room.Area vem em pés²)
+                        double areaSqM = UnitConversionHelper.SqFeetToSqM(room.Area);
 
-                    Logger.Info($"  ✓ Detectado: {hydraulicRoom}");
+                        var hydraulicRoom = new HydraulicRoom
+                        {
+                            RoomId = room.Id,
+                            RoomName = roomName,
+                            RoomNumber = roomNumber,
+                            LevelId = room.LevelId,
+                            LevelName = level?.Name ?? "Indefinido",
+                            CenterPoint = centerPoint,
+                            BoundingBox = bbox,
+                            Type = analysis.Type,
+                            ClassificationConfidence = analysis.Confidence,
+                            ClassificationMethod = analysis.Method,
+                            AreaSqM = areaSqM
+                        };
+
+                        hydraulicRooms.Add(hydraulicRoom);
+                        detectedCount++;
+
+                        Logger.LogRoomDetected(roomName, analysis.Type.ToString(), areaSqM);
+                        Logger.Debug($"[ROOM]   Confianca: {analysis.Confidence:P0}, Motivo: {analysis.Reason}");
+                    }
+                    else
+                    {
+                        ignoredCount++;
+                        Logger.Debug($"[ROOM] Ignorado: '{roomName}' — {analysis.Reason}");
+                    }
                 }
-                else
+
+                Logger.Info($"[ROOM] === Resumo ===");
+                Logger.Info($"[ROOM]   Detectados: {detectedCount}");
+                Logger.Info($"[ROOM]   Ignorados: {ignoredCount}");
+
+                return hydraulicRooms;
+            }
+        }
+
+        /// <summary>
+        /// Reclassifica ambientes usando fixtures detectados (Fase 2).
+        /// 
+        /// Deve ser chamado APÓS a detecção de equipamentos.
+        /// Permite que ambientes com nome genérico mas com fixtures hidráulicos
+        /// sejam promovidos a ambientes hidráulicos.
+        /// </summary>
+        /// <param name="existingRooms">Rooms já detectados na Fase 1.</param>
+        /// <returns>Lista atualizada (pode conter novos Rooms promovidos).</returns>
+        public List<HydraulicRoom> ReclassifyWithFixtures(List<HydraulicRoom> existingRooms)
+        {
+            Logger.Info("[ROOM] Reclassificando ambientes com dados de fixtures...");
+
+            foreach (var room in existingRooms)
+            {
+                if (room.Equipment.Count == 0) continue;
+
+                // Coleta os FixtureTypes presentes no Room
+                var fixtureTypes = new List<FixtureType>();
+                foreach (var equip in room.Equipment)
                 {
-                    Logger.Debug($"  ✗ Ignorado: '{roomName}' (não classificado como hidráulico)");
+                    var ft = EquipmentTypeToFixtureType(equip.Type);
+                    if (ft != FixtureType.Unknown)
+                        fixtureTypes.Add(ft);
+                }
+
+                if (fixtureTypes.Count == 0) continue;
+
+                // Reclassifica usando nome + fixtures
+                var reclassification = _classifier.ClassifyWithFixtures(room.RoomName, fixtureTypes);
+
+                // Atualiza se a reclassificação melhorou a confiança
+                if (reclassification.Confidence > room.ClassificationConfidence)
+                {
+                    var previousType = room.Type;
+                    room.Type = reclassification.Type;
+                    room.ClassificationConfidence = reclassification.Confidence;
+                    room.ClassificationMethod = reclassification.Method;
+
+                    if (previousType != room.Type)
+                    {
+                        Logger.Info($"[ROOM] Reclassificado: '{room.RoomName}' {previousType} -> {room.Type} " +
+                            $"(confianca: {reclassification.Confidence:P0}, motivo: {reclassification.Reason})");
+                    }
+                    else
+                    {
+                        Logger.Debug($"[ROOM] Confirmado: '{room.RoomName}' = {room.Type} " +
+                            $"(confianca subiu para {reclassification.Confidence:P0})");
+                    }
                 }
             }
 
-            Logger.Info($"Total de ambientes hidráulicos detectados: {hydraulicRooms.Count}");
-            return hydraulicRooms;
+            return existingRooms;
         }
 
         /// <summary>
-        /// Detecta ambientes hidráulicos apenas em um nível específico.
+        /// Detecta ambientes apenas em um nível específico.
         /// </summary>
-        /// <param name="levelId">ElementId do nível a filtrar.</param>
-        /// <returns>Lista de HydraulicRoom no nível especificado.</returns>
         public List<HydraulicRoom> DetectHydraulicRoomsOnLevel(ElementId levelId)
         {
             return DetectHydraulicRooms()
                 .Where(r => r.LevelId == levelId)
                 .ToList();
+        }
+
+        /// <summary>
+        /// Converte EquipmentType legado para FixtureType.
+        /// </summary>
+        private FixtureType EquipmentTypeToFixtureType(EquipmentType equipType)
+        {
+            switch (equipType)
+            {
+                case EquipmentType.VasoSanitario: return FixtureType.Toilet;
+                case EquipmentType.Lavatorio: return FixtureType.Sink;
+                case EquipmentType.Chuveiro: return FixtureType.Shower;
+                case EquipmentType.Pia: return FixtureType.KitchenSink;
+                case EquipmentType.Tanque: return FixtureType.LaundrySink;
+                case EquipmentType.Ralo: return FixtureType.Drain;
+                case EquipmentType.MaquinaLavar: return FixtureType.WashingMachine;
+                default: return FixtureType.Unknown;
+            }
         }
     }
 }

@@ -1,26 +1,42 @@
 using RevitHydraulicPlugin.TestEnvironment.Mocks;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace RevitHydraulicPlugin.TestEnvironment.Services
 {
+    // ════════════════════════════════════════════════
+    //  ENUMS — Espelham o plugin principal v2.0
+    // ════════════════════════════════════════════════
+
     /// <summary>
-    /// Tipos de ambientes hidráulicos reconhecidos.
-    /// Espelha RevitHydraulicPlugin.Models.RoomType do plugin principal.
+    /// Tipos de ambientes hidráulicos reconhecidos (v2.0).
+    /// Espelha RevitHydraulicPlugin.Models.RoomType.
     /// </summary>
     public enum RoomType
     {
-        Banheiro,
-        Lavabo,
-        Cozinha,
-        AreaDeServico,
-        Lavanderia,
-        Outro
+        Bathroom,
+        Lavatory,
+        Kitchen,
+        Laundry,
+        ServiceArea,
+        Pantry,
+        SuiteBathroom,
+        AccessibleBathroom,
+        Unknown,
+
+        // Aliases legados
+        Banheiro = Bathroom,
+        Lavabo = Lavatory,
+        Cozinha = Kitchen,
+        AreaDeServico = ServiceArea,
+        Lavanderia = Laundry,
+        Outro = Unknown
     }
 
     /// <summary>
-    /// Tipos de equipamentos hidráulicos reconhecidos.
-    /// Espelha RevitHydraulicPlugin.Models.EquipmentType do plugin principal.
+    /// Tipos de equipamentos hidráulicos legados.
+    /// Espelha RevitHydraulicPlugin.Models.EquipmentType.
     /// </summary>
     public enum EquipmentType
     {
@@ -35,41 +51,64 @@ namespace RevitHydraulicPlugin.TestEnvironment.Services
     }
 
     /// <summary>
-    /// Resultado da detecção de um ambiente hidráulico.
-    /// Contém o MockRoom original e sua classificação.
+    /// Tipos de fixtures hidráulicos (v2.0).
+    /// Espelha RevitHydraulicPlugin.Detection.FixtureType.
+    /// </summary>
+    public enum FixtureType
+    {
+        Toilet,
+        Sink,
+        Shower,
+        KitchenSink,
+        LaundrySink,
+        Drain,
+        WashingMachine,
+        Unknown
+    }
+
+    // ════════════════════════════════════════════════
+    //  MODELOS DE RESULTADO
+    // ════════════════════════════════════════════════
+
+    /// <summary>
+    /// Resultado da detecção/classificação de um ambiente.
     /// </summary>
     public class DetectedRoom
     {
         public MockRoom Room { get; set; }
         public RoomType Type { get; set; }
         public bool IsHydraulic { get; set; }
+        public double Confidence { get; set; }
+        public string Method { get; set; } = "None";
+        public string Reason { get; set; } = "";
 
         public override string ToString()
         {
-            return $"'{Room.Name}' → {(IsHydraulic ? Type.ToString() : "NÃO HIDRÁULICO")}";
+            if (!IsHydraulic) return $"'{Room.Name}' -> NAO HIDRAULICO";
+            return $"'{Room.Name}' -> {Type} (conf: {Confidence:P0}, metodo: {Method})";
         }
     }
 
     /// <summary>
-    /// Resultado da detecção de um equipamento hidráulico.
-    /// Contém o MockFixture original e sua classificação.
+    /// Resultado da detecção de um equipamento.
     /// </summary>
     public class DetectedEquipment
     {
         public MockFixture Fixture { get; set; }
         public EquipmentType Type { get; set; }
+        public FixtureType FixtureType { get; set; }
         public MockRoom Room { get; set; }
+        public double Confidence { get; set; }
+        public string Method { get; set; }
 
         public override string ToString()
         {
-            return $"{Type}: {Fixture.FamilyName} em {Room.Name}";
+            return $"{FixtureType}: {Fixture.FamilyName} em {Room.Name} ({Confidence:P0})";
         }
     }
 
     /// <summary>
-    /// Especificação de tubulação para um ramal ou coluna.
-    /// Espelha RevitHydraulicPlugin.Models.PipeSpecification do plugin principal,
-    /// mas sem dependências do Revit.
+    /// Especificação de tubulação para testes.
     /// </summary>
     public class PipeSpec
     {
@@ -78,95 +117,30 @@ namespace RevitHydraulicPlugin.TestEnvironment.Services
         public string SystemTypeName { get; set; }
         public string PipeTypeName { get; set; }
         public string Material { get; set; }
+        public double MinLengthMm { get; set; }
+        public double MaxLengthMm { get; set; }
+        public string Description { get; set; }
 
         public override string ToString()
         {
-            return $"Ø{DiameterMm}mm {Material} | Inclinação: {SlopePercent}% | Sistema: {SystemTypeName}";
+            return $"D{DiameterMm}mm {Material} | Incl: {SlopePercent}% | {SystemTypeName}";
         }
     }
 
+    // ════════════════════════════════════════════════
+    //  SERVIÇO DE DETECÇÃO DE ROOMS (v2.0)
+    // ════════════════════════════════════════════════
+
     /// <summary>
-    /// Serviço de detecção de ambientes hidráulicos.
-    /// Replica a lógica de RoomDetectionService + RoomClassification do plugin principal.
-    /// 
-    /// USA A MESMA LÓGICA DE REGEX do plugin para garantir que os testes
-    /// validam exatamente o mesmo comportamento.
+    /// Serviço de detecção de ambientes para testes.
+    /// Usa RoomClassifierTestService para classificação multi-critério.
     /// </summary>
     public class RoomDetectionTestService
     {
-        /// <summary>
-        /// Padrões de regex para cada tipo de ambiente.
-        /// IDÊNTICOS aos de RevitHydraulicPlugin.Configuration.RoomClassification.
-        /// </summary>
-        private static readonly Dictionary<RoomType, List<string>> RoomPatterns =
-            new Dictionary<RoomType, List<string>>
-            {
-                {
-                    RoomType.Banheiro, new List<string>
-                    {
-                        @"banheiro", @"wc", @"sanitário", @"sanitario",
-                        @"banho", @"bath", @"bathroom", @"toilet"
-                    }
-                },
-                {
-                    RoomType.Lavabo, new List<string>
-                    {
-                        @"lavabo", @"powder\s*room", @"half\s*bath"
-                    }
-                },
-                {
-                    RoomType.Cozinha, new List<string>
-                    {
-                        @"cozinha", @"kitchen", @"copa"
-                    }
-                },
-                {
-                    RoomType.AreaDeServico, new List<string>
-                    {
-                        @"[aá]rea\s*(de\s*)?servi[cç]o", @"service\s*area",
-                        @"\ba\.?\s*s\.\b", @"utilit"
-                    }
-                },
-                {
-                    RoomType.Lavanderia, new List<string>
-                    {
-                        @"lavanderia", @"laundry"
-                    }
-                }
-            };
+        private readonly RoomClassifierTestService _classifier = new RoomClassifierTestService();
 
         /// <summary>
-        /// Classifica um nome de ambiente como hidráulico ou não.
-        /// </summary>
-        public bool TryClassify(string roomName, out RoomType roomType)
-        {
-            if (string.IsNullOrWhiteSpace(roomName))
-            {
-                roomType = RoomType.Outro;
-                return false;
-            }
-
-            string normalized = roomName.Trim().ToLowerInvariant();
-
-            foreach (var kvp in RoomPatterns)
-            {
-                foreach (string pattern in kvp.Value)
-                {
-                    if (Regex.IsMatch(normalized, pattern, RegexOptions.IgnoreCase))
-                    {
-                        roomType = kvp.Key;
-                        return true;
-                    }
-                }
-            }
-
-            roomType = RoomType.Outro;
-            return false;
-        }
-
-        /// <summary>
-        /// Analisa todos os Rooms de um projeto e retorna a lista de detecções
-        /// (incluindo os não-hidráulicos, para fins de relatório no teste).
+        /// Fase 1: Detecta rooms por nome.
         /// </summary>
         public List<DetectedRoom> DetectRooms(MockProject project)
         {
@@ -174,17 +148,54 @@ namespace RevitHydraulicPlugin.TestEnvironment.Services
 
             foreach (var room in project.Rooms)
             {
-                bool isHydraulic = TryClassify(room.Name, out RoomType roomType);
+                var analysis = _classifier.ClassifyByName(room.Name);
 
                 results.Add(new DetectedRoom
                 {
                     Room = room,
-                    Type = roomType,
-                    IsHydraulic = isHydraulic
+                    Type = analysis.Type,
+                    IsHydraulic = analysis.IsHydraulic,
+                    Confidence = analysis.Confidence,
+                    Method = analysis.Method,
+                    Reason = analysis.Reason
                 });
             }
 
             return results;
+        }
+
+        /// <summary>
+        /// Fase 2: Reclassifica rooms usando fixtures.
+        /// </summary>
+        public void ReclassifyWithFixtures(List<DetectedRoom> rooms)
+        {
+            foreach (var room in rooms)
+            {
+                if (room.Room.Fixtures.Count == 0) continue;
+
+                var fixtureTypes = new List<FixtureType>();
+                var fixtureClassifier = new FixtureClassifierTestService();
+
+                foreach (var fixture in room.Room.Fixtures)
+                {
+                    var ft = fixtureClassifier.ClassifyByNameOnly(fixture.FamilyName, fixture.TypeName);
+                    if (ft != FixtureType.Unknown)
+                        fixtureTypes.Add(ft);
+                }
+
+                if (fixtureTypes.Count == 0) continue;
+
+                var reclassification = _classifier.ClassifyWithFixtures(room.Room.Name, fixtureTypes);
+
+                if (reclassification.Confidence > room.Confidence)
+                {
+                    room.Type = reclassification.Type;
+                    room.IsHydraulic = reclassification.IsHydraulic;
+                    room.Confidence = reclassification.Confidence;
+                    room.Method = reclassification.Method;
+                    room.Reason = reclassification.Reason;
+                }
+            }
         }
     }
 }

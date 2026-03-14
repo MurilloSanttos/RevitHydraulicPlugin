@@ -85,5 +85,23 @@ namespace RevitHydraulicPlugin.Utilities
                 MmToFeet(pointInMm.Y),
                 MmToFeet(pointInMm.Z));
         }
+
+        /// <summary>
+        /// Converte pés quadrados para metros quadrados.
+        /// Usado para converter áreas de Rooms (Revit usa sq ft internamente).
+        /// 1 sq ft = 0.092903 sq m
+        /// </summary>
+        public static double SqFeetToSqM(double sqFeet)
+        {
+            return sqFeet * 0.092903;
+        }
+
+        /// <summary>
+        /// Converte pés para metros.
+        /// </summary>
+        public static double FeetToMeters(double feet)
+        {
+            return feet * 0.3048;
+        }
     }
 }

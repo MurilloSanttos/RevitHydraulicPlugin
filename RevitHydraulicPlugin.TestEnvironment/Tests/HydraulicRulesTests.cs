@@ -3,112 +3,146 @@ using RevitHydraulicPlugin.TestEnvironment.Services;
 namespace RevitHydraulicPlugin.TestEnvironment.Tests
 {
     /// <summary>
-    /// TESTE 3 — Aplicação de Regras Hidráulicas
+    /// TESTE — Regras Hidráulicas (v2.0)
     /// 
-    /// Valida se o sistema aplica corretamente as regras de dimensionamento:
-    /// 
-    /// Vaso sanitário → 100mm, 1% inclinação
-    /// Lavatório      → 50mm,  2% inclinação
-    /// Chuveiro       → 50mm,  2% inclinação
-    /// Pia            → 50mm,  2% inclinação
-    /// Tanque         → 50mm,  2% inclinação
-    /// Ralo           → 50mm,  2% inclinação
-    /// 
-    /// Água fria (todos): 25mm, 0% inclinação (horizontal)
+    /// Valida PipeRuleProvider/HydraulicRulesTestService:
+    /// - Diâmetros por FixtureType
+    /// - Inclinações por tipo de sistema
+    /// - Regra de Drain -> 75mm
+    /// - Água fria para todos exceto Drain
     /// </summary>
     public class HydraulicRulesTests : BaseTest
     {
-        public override string TestName => "Regras Hidráulicas";
-        public override string Description => "Valida diâmetros e inclinações por equipamento";
+        public override string TestName => "Regras Hidraulicas v2.0";
+        public override string Description => "Valida diametros, inclinacoes e regras por FixtureType";
 
         public override bool Run()
         {
             PrintHeader();
 
-            // === REGRAS DE ESGOTO ===
-            PrintSection("Regras de ESGOTO:");
-
-            // Vaso sanitário: 100mm, 1%
-            var vasoSewer = HydraulicRulesTestService.GetSewerSpec(EquipmentType.VasoSanitario);
-            PrintInfo($"Vaso Sanitário: {vasoSewer}");
-            AssertApprox(100, vasoSewer.DiameterMm, "Vaso → Ø100mm");
-            AssertApprox(1.0, vasoSewer.SlopePercent, "Vaso → 1% inclinação");
-            AssertEqual("Sanitary", vasoSewer.SystemTypeName, "Vaso → Sistema Sanitary");
-            AssertEqual("PVC Esgoto", vasoSewer.Material, "Vaso → Material PVC Esgoto");
-
-            // Lavatório: 50mm, 2%
-            var lavSewer = HydraulicRulesTestService.GetSewerSpec(EquipmentType.Lavatorio);
-            PrintInfo($"Lavatório: {lavSewer}");
-            AssertApprox(50, lavSewer.DiameterMm, "Lavatório → Ø50mm");
-            AssertApprox(2.0, lavSewer.SlopePercent, "Lavatório → 2% inclinação");
-
-            // Chuveiro: 50mm, 2%
-            var chuvSewer = HydraulicRulesTestService.GetSewerSpec(EquipmentType.Chuveiro);
-            PrintInfo($"Chuveiro: {chuvSewer}");
-            AssertApprox(50, chuvSewer.DiameterMm, "Chuveiro → Ø50mm");
-            AssertApprox(2.0, chuvSewer.SlopePercent, "Chuveiro → 2% inclinação");
-
-            // Pia: 50mm, 2%
-            var piaSewer = HydraulicRulesTestService.GetSewerSpec(EquipmentType.Pia);
-            PrintInfo($"Pia: {piaSewer}");
-            AssertApprox(50, piaSewer.DiameterMm, "Pia → Ø50mm");
-            AssertApprox(2.0, piaSewer.SlopePercent, "Pia → 2% inclinação");
-
-            // Tanque: 50mm, 2%
-            var tanqueSewer = HydraulicRulesTestService.GetSewerSpec(EquipmentType.Tanque);
-            PrintInfo($"Tanque: {tanqueSewer}");
-            AssertApprox(50, tanqueSewer.DiameterMm, "Tanque → Ø50mm");
-            AssertApprox(2.0, tanqueSewer.SlopePercent, "Tanque → 2% inclinação");
-
-            // Ralo: 50mm, 2%
-            var raloSewer = HydraulicRulesTestService.GetSewerSpec(EquipmentType.Ralo);
-            PrintInfo($"Ralo: {raloSewer}");
-            AssertApprox(50, raloSewer.DiameterMm, "Ralo → Ø50mm");
-            AssertApprox(2.0, raloSewer.SlopePercent, "Ralo → 2% inclinação");
-
-            // === REGRAS DE ÁGUA FRIA ===
-            PrintSection("Regras de ÁGUA FRIA:");
-
-            var vasoWater = HydraulicRulesTestService.GetColdWaterSpec(EquipmentType.VasoSanitario);
-            PrintInfo($"Vaso Sanitário: {vasoWater}");
-            AssertApprox(25, vasoWater.DiameterMm, "Vaso (AF) → Ø25mm");
-            AssertApprox(0, vasoWater.SlopePercent, "Vaso (AF) → 0% inclinação");
-            AssertEqual("Domestic Cold Water", vasoWater.SystemTypeName, "Vaso (AF) → Sistema Cold Water");
-            AssertEqual("PVC Água Fria", vasoWater.Material, "Vaso (AF) → Material PVC Água Fria");
-
-            var lavWater = HydraulicRulesTestService.GetColdWaterSpec(EquipmentType.Lavatorio);
-            AssertApprox(25, lavWater.DiameterMm, "Lavatório (AF) → Ø25mm");
-            AssertApprox(0, lavWater.SlopePercent, "Lavatório (AF) → 0% inclinação");
-
-            var chuvWater = HydraulicRulesTestService.GetColdWaterSpec(EquipmentType.Chuveiro);
-            AssertApprox(25, chuvWater.DiameterMm, "Chuveiro (AF) → Ø25mm");
-            AssertApprox(0, chuvWater.SlopePercent, "Chuveiro (AF) → 0% inclinação");
-
-            // === COLUNAS ===
-            PrintSection("Diâmetros de COLUNAS:");
-
-            AssertApprox(50, HydraulicRulesTestService.DefaultColdWaterColumnDiameterMm,
-                "Coluna Água Fria → Ø50mm");
-            AssertApprox(100, HydraulicRulesTestService.DefaultSewerColumnDiameterMm,
-                "Coluna Esgoto → Ø100mm");
-
-            // === VALIDAÇÃO CRUZADA ===
-            PrintSection("Validação cruzada com método ValidateSewerRule:");
-
-            AssertTrue(HydraulicRulesTestService.ValidateSewerRule(
-                EquipmentType.VasoSanitario, 100, 1.0),
-                "Validação OK: VasoSanitario (100mm, 1%)");
-
-            AssertTrue(HydraulicRulesTestService.ValidateSewerRule(
-                EquipmentType.Lavatorio, 50, 2.0),
-                "Validação OK: Lavatorio (50mm, 2%)");
-
-            AssertTrue(!HydraulicRulesTestService.ValidateSewerRule(
-                EquipmentType.VasoSanitario, 50, 2.0),
-                "Validação REJEITA: VasoSanitario com valores errados");
+            Test_ToiletRule();
+            Test_SinkRule();
+            Test_ShowerRule();
+            Test_KitchenSinkRule();
+            Test_LaundrySinkRule();
+            Test_DrainRule();
+            Test_WashingMachineRule();
+            Test_ColdWaterRules();
+            Test_NeedsColdWater();
+            Test_DefaultFallback();
 
             PrintFooter();
             return FailCount == 0;
+        }
+
+        private void Test_ToiletRule()
+        {
+            PrintSection("BranchRouting_ShouldApplyToiletRule");
+
+            var spec = HydraulicRulesTestService.GetSewerRule(FixtureType.Toilet);
+            AssertApprox(100, spec.DiameterMm, "Toilet -> DN100");
+            AssertApprox(1.0, spec.SlopePercent, "Toilet -> 1% inclinacao");
+            AssertEqual("Sanitary", spec.SystemTypeName, "Toilet -> Sanitary");
+            AssertEqual("PVC", spec.PipeTypeName, "Toilet -> PVC");
+        }
+
+        private void Test_SinkRule()
+        {
+            PrintSection("BranchRouting_ShouldApplySinkRule");
+
+            var spec = HydraulicRulesTestService.GetSewerRule(FixtureType.Sink);
+            AssertApprox(50, spec.DiameterMm, "Sink -> DN50");
+            AssertApprox(2.0, spec.SlopePercent, "Sink -> 2% inclinacao");
+        }
+
+        private void Test_ShowerRule()
+        {
+            PrintSection("BranchRouting_ShouldApplyShowerRule");
+
+            var spec = HydraulicRulesTestService.GetSewerRule(FixtureType.Shower);
+            AssertApprox(50, spec.DiameterMm, "Shower -> DN50");
+            AssertApprox(2.0, spec.SlopePercent, "Shower -> 2% inclinacao");
+        }
+
+        private void Test_KitchenSinkRule()
+        {
+            PrintSection("BranchRouting_ShouldApplyKitchenSinkRule");
+
+            var spec = HydraulicRulesTestService.GetSewerRule(FixtureType.KitchenSink);
+            AssertApprox(50, spec.DiameterMm, "KitchenSink -> DN50");
+            AssertApprox(2.0, spec.SlopePercent, "KitchenSink -> 2%");
+        }
+
+        private void Test_LaundrySinkRule()
+        {
+            PrintSection("BranchRouting_ShouldApplyLaundrySinkRule");
+
+            var spec = HydraulicRulesTestService.GetSewerRule(FixtureType.LaundrySink);
+            AssertApprox(50, spec.DiameterMm, "LaundrySink -> DN50");
+            AssertApprox(2.0, spec.SlopePercent, "LaundrySink -> 2%");
+        }
+
+        private void Test_DrainRule()
+        {
+            PrintSection("BranchRouting_ShouldApplyDrainRule");
+
+            var spec = HydraulicRulesTestService.GetSewerRule(FixtureType.Drain);
+            AssertApprox(75, spec.DiameterMm, "Drain -> DN75 (atualizado)");
+            AssertApprox(2.0, spec.SlopePercent, "Drain -> 2%");
+        }
+
+        private void Test_WashingMachineRule()
+        {
+            PrintSection("WashingMachine regra");
+
+            var spec = HydraulicRulesTestService.GetSewerRule(FixtureType.WashingMachine);
+            AssertApprox(50, spec.DiameterMm, "WashingMachine -> DN50");
+            AssertApprox(2.0, spec.SlopePercent, "WashingMachine -> 2%");
+        }
+
+        private void Test_ColdWaterRules()
+        {
+            PrintSection("Regras Agua Fria");
+
+            var fixtures = new[]
+            {
+                FixtureType.Toilet, FixtureType.Sink, FixtureType.Shower,
+                FixtureType.KitchenSink, FixtureType.LaundrySink
+            };
+
+            foreach (var ft in fixtures)
+            {
+                var spec = HydraulicRulesTestService.GetColdWaterRule(ft);
+                AssertApprox(25, spec.DiameterMm, $"AF {ft} -> DN25");
+                AssertApprox(0, spec.SlopePercent, $"AF {ft} -> 0% inclinacao");
+                AssertEqual("Domestic Cold Water", spec.SystemTypeName,
+                    $"AF {ft} -> Domestic Cold Water");
+            }
+        }
+
+        private void Test_NeedsColdWater()
+        {
+            PrintSection("NeedsColdWater");
+
+            AssertTrue(HydraulicRulesTestService.NeedsColdWater(FixtureType.Toilet),
+                "Toilet precisa AF");
+            AssertTrue(HydraulicRulesTestService.NeedsColdWater(FixtureType.Sink),
+                "Sink precisa AF");
+            AssertTrue(HydraulicRulesTestService.NeedsColdWater(FixtureType.Shower),
+                "Shower precisa AF");
+            AssertTrue(!HydraulicRulesTestService.NeedsColdWater(FixtureType.Drain),
+                "Drain NAO precisa AF");
+            AssertTrue(!HydraulicRulesTestService.NeedsColdWater(FixtureType.Unknown),
+                "Unknown NAO precisa AF");
+        }
+
+        private void Test_DefaultFallback()
+        {
+            PrintSection("Default Fallback");
+
+            var spec = HydraulicRulesTestService.GetSewerRule(FixtureType.Unknown);
+            AssertApprox(50, spec.DiameterMm, "Unknown -> DN50 (fallback)");
+            AssertApprox(2.0, spec.SlopePercent, "Unknown -> 2% (fallback)");
         }
     }
 }

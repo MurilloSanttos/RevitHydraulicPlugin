@@ -84,10 +84,13 @@ namespace RevitHydraulicPlugin.Services
             if (_detectedEquipment.Count == 0)
             {
                 result.Success = false;
-                result.Message = "Nenhum equipamento hidráulico detectado nos ambientes.";
+                result.Message = "Nenhum equipamento hidraulico detectado nos ambientes.";
                 Logger.Warning(result.Message);
                 return result;
             }
+
+            // Etapa 2.5: Reclassificação de Rooms com dados de fixtures (Fase 2)
+            _detectedRooms = _roomDetection.ReclassifyWithFixtures(_detectedRooms);
 
             // Etapa 3: Cálculo de colunas (sem Transaction)
             _calculatedColumns = _columnRouting.CalculateColumns(_detectedRooms);

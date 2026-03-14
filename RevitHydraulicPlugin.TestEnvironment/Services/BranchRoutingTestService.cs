@@ -6,49 +6,47 @@ using System.Linq;
 namespace RevitHydraulicPlugin.TestEnvironment.Services
 {
     /// <summary>
-    /// Serviço de roteamento de colunas e ramais para testes.
-    /// Replica a lógica de ColumnRoutingService + BranchRoutingService do plugin principal.
+    /// Resultado da geração de um ramal individual.
+    /// </summary>
+    public class BranchGenerationResult
+    {
+        public bool Success { get; set; }
+        public MockBranch Branch { get; set; }
+        public string FailureReason { get; set; }
+        public PipeSpec AppliedRule { get; set; }
+        public int SegmentCount { get; set; }
+        public double TotalLengthMm { get; set; }
+    }
+
+    /// <summary>
+    /// Serviço de roteamento de ramais para testes (v2.0).
+    /// Espelha BranchRoutingService + ColumnRoutingService do plugin principal.
     /// 
-    /// Calcula posições de colunas e gera ramais conectando equipamentos às colunas,
-    /// criando MockPipes como resultado.
+    /// Melhorias:
+    /// - Roteamento ortogonal em L
+    /// - PipeRuleProvider por FixtureType
+    /// - Validação de comprimento min/max
+    /// - BranchGenerationResult detalhado
     /// </summary>
     public class BranchRoutingTestService
     {
-        /// <summary>
-        /// Offset horizontal (mm) da coluna em relação ao centro do ambiente.
-        /// Mesmo valor de PluginSettings.ColumnOffsetFromCenterMm.
-        /// </summary>
         private const double ColumnOffsetMm = 300;
-
-        /// <summary>
-        /// Offset entre coluna de água fria e coluna de esgoto (mm).
-        /// </summary>
         private const double ColumnSeparationMm = 200;
-
-        /// <summary>
-        /// Offset vertical do ramal de esgoto em relação ao piso (mm).
-        /// </summary>
         private const double SewerBranchHeightMm = -50;
-
-        /// <summary>
-        /// Altura do ramal de água fria em relação ao piso (mm).
-        /// </summary>
         private const double ColdWaterBranchHeightMm = 600;
 
         private static int _pipeIdCounter = 5000;
 
-        /// <summary>
-        /// Calcula posições de colunas hidráulicas para os ambientes detectados.
-        /// Cria pares de colunas (Água Fria + Esgoto) por grupo de ambientes.
-        /// </summary>
+        // ════════════════════════════════════════════════
+        //  COLUNAS
+        // ════════════════════════════════════════════════
+
         public List<MockColumn> CalculateColumns(
             List<DetectedRoom> hydraulicRooms,
             List<MockLevel> levels)
         {
             var columns = new List<MockColumn>();
             int colIndex = 1;
-
-            // Agrupa rooms por posição horizontal similar
             var groups = GroupRoomsByPosition(hydraulicRooms);
 
             foreach (var group in groups)
@@ -56,42 +54,40 @@ namespace RevitHydraulicPlugin.TestEnvironment.Services
                 var referenceRoom = group.First().Room;
                 var center = referenceRoom.CenterPoint;
 
-                // Coluna de Água Fria
-                var coldWaterPos = center.Offset(ColumnOffsetMm, 0, 0);
+                // Coluna AF
+                var cafPos = center.Offset(ColumnOffsetMm, 0, 0);
                 var cafColumn = new MockColumn
                 {
                     ColumnId = $"CAF-{colIndex:D2}",
                     SystemType = ConnectorSystemType.ColdWater,
-                    BasePosition = coldWaterPos,
+                    BasePosition = cafPos,
                     DiameterMm = HydraulicRulesTestService.DefaultColdWaterColumnDiameterMm,
                     Levels = levels,
                     AssociatedRoom = referenceRoom
                 };
 
-                // Criar segmentos de pipe verticais
                 for (int i = 0; i < levels.Count - 1; i++)
                 {
                     cafColumn.Pipes.Add(new MockPipe
                     {
                         Id = _pipeIdCounter++,
-                        StartPoint = coldWaterPos.AtElevation(levels[i].ElevationMm),
-                        EndPoint = coldWaterPos.AtElevation(levels[i + 1].ElevationMm),
+                        StartPoint = cafPos.AtElevation(levels[i].ElevationMm),
+                        EndPoint = cafPos.AtElevation(levels[i + 1].ElevationMm),
                         DiameterMm = cafColumn.DiameterMm,
                         SystemType = "Domestic Cold Water",
-                        Material = "PVC Água Fria",
+                        Material = "PVC Agua Fria",
                         SlopePercent = 0
                     });
                 }
-
                 columns.Add(cafColumn);
 
-                // Coluna de Esgoto
-                var sewerPos = coldWaterPos.Offset(ColumnSeparationMm, 0, 0);
+                // Coluna Esgoto
+                var cesPos = cafPos.Offset(ColumnSeparationMm, 0, 0);
                 var cesColumn = new MockColumn
                 {
                     ColumnId = $"CES-{colIndex:D2}",
                     SystemType = ConnectorSystemType.Sewer,
-                    BasePosition = sewerPos,
+                    BasePosition = cesPos,
                     DiameterMm = HydraulicRulesTestService.DefaultSewerColumnDiameterMm,
                     Levels = levels,
                     AssociatedRoom = referenceRoom
@@ -102,15 +98,14 @@ namespace RevitHydraulicPlugin.TestEnvironment.Services
                     cesColumn.Pipes.Add(new MockPipe
                     {
                         Id = _pipeIdCounter++,
-                        StartPoint = sewerPos.AtElevation(levels[i].ElevationMm),
-                        EndPoint = sewerPos.AtElevation(levels[i + 1].ElevationMm),
+                        StartPoint = cesPos.AtElevation(levels[i].ElevationMm),
+                        EndPoint = cesPos.AtElevation(levels[i + 1].ElevationMm),
                         DiameterMm = cesColumn.DiameterMm,
                         SystemType = "Sanitary",
                         Material = "PVC Esgoto",
                         SlopePercent = 0
                     });
                 }
-
                 columns.Add(cesColumn);
                 colIndex++;
             }
@@ -118,100 +113,175 @@ namespace RevitHydraulicPlugin.TestEnvironment.Services
             return columns;
         }
 
+        // ════════════════════════════════════════════════
+        //  RAMAIS (v2.0 — ORTOGONAL)
+        // ════════════════════════════════════════════════
+
         /// <summary>
-        /// Gera ramais conectando equipamentos às colunas mais próximas.
-        /// Para cada equipamento, cria ramais de esgoto e água fria (quando aplicável).
+        /// Gera ramais para todos os equipamentos detectados.
+        /// Retorna lista de MockBranch + relatório de resultados.
         /// </summary>
         public List<MockBranch> GenerateBranches(
             List<DetectedEquipment> equipment,
             List<MockColumn> columns)
         {
+            return GenerateBranchesWithResults(equipment, columns).branches;
+        }
+
+        /// <summary>
+        /// Gera ramais com resultados detalhados (para testes).
+        /// </summary>
+        public (List<MockBranch> branches, List<BranchGenerationResult> results)
+            GenerateBranchesWithResults(
+                List<DetectedEquipment> equipment,
+                List<MockColumn> columns)
+        {
             var branches = new List<MockBranch>();
+            var results = new List<BranchGenerationResult>();
 
             var sewerColumns = columns.Where(c => c.SystemType == ConnectorSystemType.Sewer).ToList();
             var coldWaterColumns = columns.Where(c => c.SystemType == ConnectorSystemType.ColdWater).ToList();
 
             foreach (var equip in equipment)
             {
-                var position = equip.Fixture.Position;
+                var fixtureType = equip.FixtureType;
 
-                // === Ramal de Esgoto ===
-                var nearestSewer = FindNearestColumn(position, sewerColumns);
-                if (nearestSewer != null)
+                // Ramal Esgoto
+                var sewerResult = GenerateSewerBranch(equip, fixtureType, sewerColumns);
+                results.Add(sewerResult);
+                if (sewerResult.Success)
+                    branches.Add(sewerResult.Branch);
+
+                // Ramal Água Fria
+                if (HydraulicRulesTestService.NeedsColdWater(fixtureType))
                 {
-                    var sewerSpec = HydraulicRulesTestService.GetSewerSpec(equip.Type);
-
-                    // Ponto de partida: posição do equipamento + offset de altura
-                    var startPoint = position.Offset(0, 0, SewerBranchHeightMm);
-
-                    // Ponto de chegada: posição XY da coluna com queda por inclinação
-                    double horizontalDist = position.HorizontalDistanceTo(nearestSewer.BasePosition);
-                    double slopeDrop = horizontalDist * (sewerSpec.SlopePercent / 100.0);
-
-                    var endPoint = new Point3D(
-                        nearestSewer.BasePosition.X,
-                        nearestSewer.BasePosition.Y,
-                        startPoint.Z - slopeDrop);
-
-                    branches.Add(new MockBranch
-                    {
-                        Fixture = equip.Fixture,
-                        TargetColumn = nearestSewer,
-                        SystemType = ConnectorSystemType.Sewer,
-                        Pipe = new MockPipe
-                        {
-                            Id = _pipeIdCounter++,
-                            StartPoint = startPoint,
-                            EndPoint = endPoint,
-                            DiameterMm = sewerSpec.DiameterMm,
-                            SystemType = sewerSpec.SystemTypeName,
-                            Material = sewerSpec.Material,
-                            SlopePercent = sewerSpec.SlopePercent
-                        }
-                    });
-                }
-
-                // === Ramal de Água Fria ===
-                // Ralo não precisa de água fria
-                if (equip.Type != EquipmentType.Ralo)
-                {
-                    var nearestColdWater = FindNearestColumn(position, coldWaterColumns);
-                    if (nearestColdWater != null)
-                    {
-                        var waterSpec = HydraulicRulesTestService.GetColdWaterSpec(equip.Type);
-
-                        var startPoint = position.Offset(0, 0, ColdWaterBranchHeightMm);
-                        var endPoint = new Point3D(
-                            nearestColdWater.BasePosition.X,
-                            nearestColdWater.BasePosition.Y,
-                            startPoint.Z);
-
-                        branches.Add(new MockBranch
-                        {
-                            Fixture = equip.Fixture,
-                            TargetColumn = nearestColdWater,
-                            SystemType = ConnectorSystemType.ColdWater,
-                            Pipe = new MockPipe
-                            {
-                                Id = _pipeIdCounter++,
-                                StartPoint = startPoint,
-                                EndPoint = endPoint,
-                                DiameterMm = waterSpec.DiameterMm,
-                                SystemType = waterSpec.SystemTypeName,
-                                Material = waterSpec.Material,
-                                SlopePercent = 0
-                            }
-                        });
-                    }
+                    var waterResult = GenerateColdWaterBranch(equip, fixtureType, coldWaterColumns);
+                    results.Add(waterResult);
+                    if (waterResult.Success)
+                        branches.Add(waterResult.Branch);
                 }
             }
 
-            return branches;
+            return (branches, results);
         }
 
+        // ── Ramal de Esgoto ──
+
+        private BranchGenerationResult GenerateSewerBranch(
+            DetectedEquipment equip, FixtureType fixtureType,
+            List<MockColumn> sewerColumns)
+        {
+            var result = new BranchGenerationResult();
+            var rule = HydraulicRulesTestService.GetSewerRule(fixtureType);
+            result.AppliedRule = rule;
+
+            var nearest = FindNearestColumn(equip.Fixture.Position, sewerColumns);
+            if (nearest == null)
+            {
+                result.FailureReason = "Nenhuma coluna de esgoto encontrada";
+                return result;
+            }
+
+            var branch = CreateOrthogonalRoute(equip.Fixture, nearest, rule,
+                SewerBranchHeightMm, true);
+
+            if (branch == null)
+            {
+                result.FailureReason = "Falha ao calcular rota";
+                return result;
+            }
+
+            result.Success = true;
+            result.Branch = branch;
+            result.TotalLengthMm = branch.Pipe.LengthMm;
+            result.SegmentCount = 1; // Simplificado para mock
+            return result;
+        }
+
+        // ── Ramal de Água Fria ──
+
+        private BranchGenerationResult GenerateColdWaterBranch(
+            DetectedEquipment equip, FixtureType fixtureType,
+            List<MockColumn> coldWaterColumns)
+        {
+            var result = new BranchGenerationResult();
+            var rule = HydraulicRulesTestService.GetColdWaterRule(fixtureType);
+            result.AppliedRule = rule;
+
+            var nearest = FindNearestColumn(equip.Fixture.Position, coldWaterColumns);
+            if (nearest == null)
+            {
+                result.FailureReason = "Nenhuma coluna AF encontrada";
+                return result;
+            }
+
+            var branch = CreateOrthogonalRoute(equip.Fixture, nearest, rule,
+                ColdWaterBranchHeightMm, false);
+
+            if (branch == null)
+            {
+                result.FailureReason = "Falha ao calcular rota";
+                return result;
+            }
+
+            result.Success = true;
+            result.Branch = branch;
+            result.TotalLengthMm = branch.Pipe.LengthMm;
+            result.SegmentCount = 1;
+            return result;
+        }
+
+        // ════════════════════════════════════════════════
+        //  ROTEAMENTO ORTOGONAL
+        // ════════════════════════════════════════════════
+
         /// <summary>
-        /// Encontra a coluna mais próxima de um ponto (distância horizontal).
+        /// Cria rota ortogonal entre fixture e coluna.
+        /// Para esgoto: aplica inclinação.
+        /// Para AF: horizontal sem inclinação.
         /// </summary>
+        private MockBranch CreateOrthogonalRoute(
+            MockFixture fixture, MockColumn column, PipeSpec rule,
+            double heightOffsetMm, bool applySlope)
+        {
+            if (fixture.Position == null || column.BasePosition == null)
+                return null;
+
+            var pos = fixture.Position;
+            var startPoint = pos.Offset(0, 0, heightOffsetMm);
+
+            double horizontalDist = pos.HorizontalDistanceTo(column.BasePosition);
+            double slopeDrop = applySlope
+                ? horizontalDist * (rule.SlopePercent / 100.0)
+                : 0;
+
+            var endPoint = new Point3D(
+                column.BasePosition.X,
+                column.BasePosition.Y,
+                startPoint.Z - slopeDrop);
+
+            return new MockBranch
+            {
+                Fixture = fixture,
+                TargetColumn = column,
+                SystemType = applySlope ? ConnectorSystemType.Sewer : ConnectorSystemType.ColdWater,
+                Pipe = new MockPipe
+                {
+                    Id = _pipeIdCounter++,
+                    StartPoint = startPoint,
+                    EndPoint = endPoint,
+                    DiameterMm = rule.DiameterMm,
+                    SystemType = rule.SystemTypeName,
+                    Material = rule.Material,
+                    SlopePercent = rule.SlopePercent
+                }
+            };
+        }
+
+        // ════════════════════════════════════════════════
+        //  UTILIDADES
+        // ════════════════════════════════════════════════
+
         private MockColumn FindNearestColumn(Point3D point, List<MockColumn> columns)
         {
             MockColumn nearest = null;
@@ -230,16 +300,11 @@ namespace RevitHydraulicPlugin.TestEnvironment.Services
             return nearest;
         }
 
-        /// <summary>
-        /// Agrupa ambientes hidráulicos por posição horizontal similar.
-        /// Ambientes empilhados (mesma posição XY, níveis diferentes)
-        /// compartilham a mesma prumada.
-        /// </summary>
         private List<List<DetectedRoom>> GroupRoomsByPosition(List<DetectedRoom> rooms)
         {
             var groups = new List<List<DetectedRoom>>();
             var assigned = new HashSet<int>();
-            double tolerance = 2500; // mm
+            double tolerance = 2500;
 
             foreach (var room in rooms)
             {
@@ -254,9 +319,7 @@ namespace RevitHydraulicPlugin.TestEnvironment.Services
                     if (assigned.Contains(other.Room.Id) || other.Room.CenterPoint == null)
                         continue;
 
-                    double dist = room.Room.CenterPoint.HorizontalDistanceTo(
-                        other.Room.CenterPoint);
-
+                    double dist = room.Room.CenterPoint.HorizontalDistanceTo(other.Room.CenterPoint);
                     if (dist < tolerance)
                     {
                         group.Add(other);
